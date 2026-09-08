@@ -10,7 +10,9 @@ app.expressApp = expressApp; // للتوافقية
 app.use(expressApp.json({ limit: '10mb' }));
 app.use(expressApp.urlencoded({ limit: '10mb', extended: true }));
 app.use(expressApp.static(path.join(__dirname, 'public')));
-
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 // إعداد قاعدة البيانات SQLite
 const db = new sqlite3.Database('./chat.db', (err) => {
     if (err) console.error('خطأ في الاتصال بقاعدة البيانات', err.message);
