@@ -1,13 +1,11 @@
-const express = require('http');
+const http = require('http');
 const expressApp = require('express');
 const { Server } = require('socket.io');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
-
 const app = expressApp();
-const server = express.createServer(app);
+const server = http.createServer(app);
 const io = new Server(server);
-
 app.expressApp = expressApp; // للتوافقية
 app.use(expressApp.json({ limit: '10mb' }));
 app.use(expressApp.urlencoded({ limit: '10mb', extended: true }));
