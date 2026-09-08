@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>دردشة الملوك</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Tahoma, sans-serif; }
+        body { background-color: #0d1117; color: #c9d1d9; display: flex; height: 100vh; overflow: hidden; transition: background 0.3s ease; }
+        
+        #auth-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .auth-box { background: #161b22; padding: 30px; border-radius: 10px; width: 380px; text-align: center; border: 1px solid #30363d; }
+        .auth-box h2 { margin-bottom: 20px; color: #f0f6fc; }
+        .auth-box input[type="text"], .auth-box input[type="password"] { width: 100%; padding: 10px; margin-bottom: 15px; background: #0d1117; border: 1px solid #30363d; color: #fff; border-radius: 5px; }
+        .auth-box button { width: 100%; padding: 10px; background: #238636; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-bottom: 10px; }
+        .auth-box button.switch-btn { background: #21262d; border: 1px solid #30363d; }
+        .file-upload-group { margin-bottom: 15px; text-align: right; }
+        .file-upload-group label { font-size: 13px; color: #8b949e; display: block; margin-bottom: 5px; }
+        .file-upload-group input { width: 100%; color: #c9d1d9; font-size: 12px; }
+
+        .main-container { display: flex; width: 100%; height: 100%; }
+        .chat-area { flex: 1; display: flex; flex-direction: column; background: #0d1117; transition: background 0.3s ease; }
+        
+        .header { background: #161b22; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #30363d; flex-wrap: wrap; gap: 10px; }
+        .room-title { font-size: 18px; font-weight: bold; color: #ff5252; }
+        .top-nav-buttons { display: flex; gap: 8px; align-items: center; position: relative; flex-wrap: wrap; }
+        .top-btn { background: #1f6feb; border: none; color: #fff; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px; position: relative; }
+        .top-btn:hover { background: #388bfd; }
+
+        .mics-bar { background: #161b22; padding: 10px 20px; display: flex; justify-content: space-around; border-bottom: 1px solid #30363d; align-items: center; }
+        .mic-slot { background: #21262d; border: 1px dashed #30363d; border-radius: 8px; padding: 8px 12px; width: 22%; text-align: center; font-size: 12px; display: flex; flex-direction: column; gap: 5px; align-items: center; }
+        .mic-slot.active { border: 1px solid #238636; background: #1b221b; }
+        .mic-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+
+        #messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .message { max-width: 60%; padding: 10px 15px; border-radius: 8px; position: relative; word-break: break-word; display: flex; flex-direction: column; gap: 4px; }
+        .message.incoming { background: #161b22; align-self: flex-start; border: 1px solid #30363d; }
+        .message.outgoing { background: #1f6feb; align-self: flex-end; color: #fff; }
+        .message .msg-header { display: flex; align-items: center; gap: 8px; font-size: 11px; opacity: 0.8; }
+        .message .avatar-img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
+        .message .time { font-size: 10px; opacity: 0.5; text-align: left; margin-top: 2px; }
+
+        .input-bar { padding: 15px; background: #161b22; display: flex; gap: 10px; border-top: 1px solid #30363d; align-items: center; position: relative; }
+        .input-bar input { flex: 1; padding: 10px; background: #0d1117; border: 1px solid #30363d; color: #fff; border-radius: 5px; }
+        .icon-btn { background: transparent; border: none; font-size: 18px; cursor: pointer; color: #8b949e; padding: 5px; }
+        .icon-btn:hover { color: #fff; }
+        .input-bar button.send-btn { padding: 10px 20px; background: #f85149; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+@media (max-width: 768px) {
+    .main-container {
+        position: relative;
+    }
+    .sidebar {
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 80%;
+        max-width: 300px;
+        height: 100%;
+        z-index: 100;
+        transform: translateX(100%);
+        transition: transform 0.3s ease-in-out;
+    }
+    .sidebar.mobile-open {
+        transform: translateX(0);
+    }
+}
+        #emoji-picker { position: absolute; bottom: 70px; right: 20px; background: #161b22; border: 1px solid #30363d; padding: 10px; border-radius: 8px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        .emoji-item { background: transparent; border: none; font-size: 20px; cursor: pointer; padding: 5px; border-radius: 4px; }
+        .emoji-item:hover { background: #30363d; }
+
+        .sidebar { width: 300px; background: #161b22; border-right: 1px solid #30363d; display: flex; flex-direction: column; }
+        .sidebar-section { padding: 15px; border-bottom: 1px solid #30363d; }
+        .sidebar-section h3 { font-size: 14px; margin-bottom: 10px; color: #8b949e; }
+        .room-item { padding: 8px 12px; margin-bottom: 5px; border-radius: 5px; cursor: pointer; background: #21262d; display: flex; justify-content: space-between; }
+        .room-item.active { background: #f85149; color: #fff; }
+        
+        .user-list { overflow-y: auto; flex: 1; padding: 10px; }
+        .user-item { padding: 8px; display: flex; justify-content: space-between; align-items: center; background: #21262d; margin-bottom: 6px; border-radius: 5px; font-size: 12px; position: relative; }
+        .user-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; margin-left: 6px; vertical-align: middle; }
+        .action-btns { display: flex; gap: 4px; }
+        .action-btn { border: none; color: #fff; padding: 3px 6px; border-radius: 3px; cursor: pointer; font-size: 11px; }
+        .chat-btn { background: #238636; }
+        .friend-btn { background: #1f6feb; }
+        .ban-btn { background: #d73a49; }
+        
+        .red-dot { width: 9px; height: 9px; background-color: #ff5252; border-radius: 50%; display: inline-block; position: absolute; top: 6px; left: 6px; }
+        .friend-request-card { background: #161b22; border: 1px solid #30363d; padding: 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .friend-request-card span { font-weight: bold; color: #f0f6fc; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div id="auth-modal">
+        <div class="auth-box">
+            <h2 id="auth-title">تسجيل الدخول</h2>
+            <input type="text" id="username" placeholder="اسم المستخدم">
+            <input type="password" id="password" placeholder="كلمة المرور">
+            
+            <div id="avatar-container" class="file-upload-group hidden">
+                <label>الصورة الشخصية:</label>
+                <input type="file" id="avatar-file" accept="image/*">
+            </div>
+
+            <button id="auth-submit-btn" onclick="handleAuth()">دخول</button>
+            <button class="switch-btn" onclick="toggleAuthMode()">إنشاء حساب جديد</button>
+        </div>
+    </div>
+
+    <div id="main-chat" class="main-container hidden">
+        <div class="chat-area">
+            <div class="header">
+                <div id="current-view-title" class="room-title">غرفة: العامة</div>
+                <div class="top-nav-buttons">
+                    <button class="top-btn mobile-menu-btn" onclick="toggleSidebar()">☰ القائمة</button>
+                    <select id="bg-selector" class="top-btn" onchange="changeBackground(this.value)">
+                        <option value="#0d1117">خلفية داكنة</option>
+                        <option value="linear-gradient(135deg, #1f4068, #162447)">أزرق ملكي</option>
+                        <option value="linear-gradient(135deg, #2c003e, #0d1117)">بنفسجي فخم</option>
+                    </select>
+
+                    <button class="top-btn" id="mute-toggle-btn" onclick="toggleGlobalMute()" style="background: #238636;">🔊 الصوت</button>
+                    
+                    <button class="top-btn" onclick="openNotificationsView()">
+                        🔔 الإشعارات
+                        <span id="global-notif-dot" class="red-dot hidden"></span>
+                    </button>
+                    
+                    <button class="top-btn" onclick="openPrivateChatsList()">
+                        💬 الرسائل
+                        <span id="global-unread-dot" class="red-dot hidden"></span>
+                    </button>
+
+                    <button class="top-btn" style="background: #8957e5;" onclick="openChangeAvatarModal()">📷 البروفيل</button>
+                    <button class="top-btn" style="background: #da3633;" onclick="openChangePasswordModal()">🔑 كلمة المرور</button>
+                    <button class="top-btn" style="background: #6e7681;" onclick="logout()">🚪 خروج</button>
+
+                    <span id="user-display-name" style="font-weight: bold; font-size: 12px; margin-right: 5px;"></span>
+                </div>
+            </div>
+
+            <div class="mics-bar">
+                <div class="mic-slot" id="mic-0">
+                    <span>مايك 1 (خالي)</span>
+                    <button class="action-btn chat-btn" onclick="takeMic(0)">صعود</button>
+                </div>
+                <div class="mic-slot" id="mic-1">
+                    <span>مايك 2 (خالي)</span>
+                    <button class="action-btn chat-btn" onclick="takeMic(1)">صعود</button>
+                </div>
+                <div class="mic-slot" id="mic-2">
+                    <span>مايك 3 (خالي)</span>
+                    <button class="action-btn chat-btn" onclick="takeMic(2)">صعود</button>
+                </div>
+                <div class="mic-slot" id="mic-3">
+                    <span>مايك 4 (خالي)</span>
+                    <button class="action-btn chat-btn" onclick="takeMic(3)">صعود</button>
+                </div>
+            </div>
+            
+            <div id="messages"></div>
+
+            <div id="emoji-picker" class="hidden">
+                <button class="emoji-item" onclick="addEmoji('😀')">😀</button>
+                <button class="emoji-item" onclick="addEmoji('😂')">😂</button>
+                <button class="emoji-item" onclick="addEmoji('❤️')">❤️</button>
+                <button class="emoji-item" onclick="addEmoji('👍')">👍</button>
+                <button class="emoji-item" onclick="addEmoji('🔥')">🔥</button>
+                <button class="emoji-item" onclick="addEmoji('😎')">😎</button>
+                <button class="emoji-item" onclick="addEmoji('😢')">😢</button>
+                <button class="emoji-item" onclick="addEmoji('🙏')">🙏</button>
+                <button class="emoji-item" onclick="addEmoji('✨')">✨</button>
+                <button class="emoji-item" onclick="addEmoji('👏')">👏</button>
+            </div>
+
+            <div class="input-bar">
+                <button class="icon-btn" onclick="toggleEmojiPicker()" title="الإيموجي">😀</button>
+                <button class="icon-btn" id="mic-btn" onclick="toggleVoiceRecording()" title="تسجيل صوتي">🎤</button>
+                <input type="text" id="message-input" placeholder="اكتب رسالتك هنا..." onkeypress="handleKeyPress(event)">
+                <button class="send-btn" onclick="sendMessage()">إرسال</button>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="sidebar-section">
+                <h3>الغرف العامة</h3>
+                <div class="room-item active" onclick="switchRoom('العامة')"><span>العامة</span><span id="count-العامة">0</span></div>
+                <div class="room-item" onclick="switchRoom('ملوك مصر')"><span>ملوك مصر</span><span id="count-ملوك مصر">0</span></div>
+                <div class="room-item" onclick="switchRoom('ملوك المغرب')"><span>ملوك المغرب</span><span id="count-ملوك المغرب">0</span></div>
+                <div class="room-item" onclick="switchRoom('ملوك الجزائر')"><span>ملوك الجزائر</span><span id="count-ملوك الجزائر">0</span></div>
+            </div>
+            <div class="sidebar-section" style="flex: 1; display: flex; flex-direction: column;">
+                <h3>المتواجدون أونلاين</h3>
+                <div id="users-list" class="user-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script></script>
+        const socket = io();
+        let isRegistering = false;
+        let currentUser = null;
+        let currentAvatar = '👤';
+        let currentRoom = 'العامة';
+        let currentChatPeer = null; 
+        let isViewingNotifications = false;
+        let roomMessagesCache = {}; 
+        let privateMessagesCache = {}; 
+        let unreadPrivateMessages = {}; 
+        let friendRequests = []; 
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecording = false;
+        let isGlobalMuted = false;
+
+        function toggleGlobalMute() {
+            isGlobalMuted = !isGlobalMuted;
+            const btn = document.getElementById('mute-toggle-btn');
+            if (isGlobalMuted) {
+                btn.style.background = '#d73a49';
+                btn.innerText = '🔇 صامت';
+            } else {
+                btn.style.background = '#238636';
+                btn.innerText = '🔊 الصوت';
+            }
+            document.querySelectorAll('audio').forEach(audio => { audio.muted = isGlobalMuted; });
+        }
+
+        function changeBackground(bgValue) {
+            document.body.style.background = bgValue;
+        }
+
+        function toggleAuthMode() {
+            isRegistering = !isRegistering;
+            document.getElementById('auth-title').innerText = isRegistering ? 'إنشاء حساب جديد' : 'تسجيل الدخول';
+            document.getElementById('auth-submit-btn').innerText = isRegistering ? 'تسجيل' : 'دخول';
+            const avatarContainer = document.getElementById('avatar-container');
+            if (isRegistering) avatarContainer.classList.remove('hidden');
+            else avatarContainer.classList.add('hidden');
+        }
+
+        function handleAuth() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
+            if (!username || !password) return alert('الرجاء إدخال اسم المستخدم وكلمة المرور.');
+
+            if (isRegistering) {
+                const fileInput = document.getElementById('avatar-file');
+                if (fileInput.files && fileInput.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) { sendAuthRequest(username, password, e.target.result); };
+                    reader.readAsDataURL(fileInput.files[0]);
+                } else {
+                    sendAuthRequest(username, password, '👤');
+                }
+            } else {
+                sendAuthRequest(username, password, '👤');
+            }
+        }
+
+        function sendAuthRequest(username, password, avatar) {
+            const eventName = isRegistering ? 'register' : 'login';
+            socket.emit(eventName, { username, password, avatar }, (res) => {
+                alert(res.message);
+                if (res.success) {
+                    if (isRegistering) {
+                        toggleAuthMode();
+                    } else {
+                        currentUser = res.username;
+                        currentAvatar = res.avatar || '👤';
+                        document.getElementById('user-display-name').innerText = currentUser;
+                        document.getElementById('auth-modal').classList.add('hidden');
+                        document.getElementById('main-chat').classList.remove('hidden');
+                        socket.emit('join room', 'العامة');
+                    }
+                }
+            });
+        }
+
+        // ميزة تغيير الصورة الشخصية
+        function openChangeAvatarModal() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = e => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        socket.emit('update avatar', { newAvatar: event.target.result }, (res) => {
+                            alert(res.message);
+                            if (res.success) {
+                                currentAvatar = res.avatar;
+                            }
+                        });
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+            input.click();
+        }
+
+        // ميزة تغيير كلمة المرور
+        function openChangePasswordModal() {
+            const oldPassword = prompt('أدخل كلمة المرور القديمة:');
+            if (!oldPassword) return;
+            const newPassword = prompt('أدخل كلمة المرور الجديدة:');
+            if (!newPassword) return;
+
+            socket.emit('change password', { oldPassword, newPassword }, (res) => {
+                alert(res.message);
+            });
+        }
+
+        // ميزة تسجيل الخروج
+        function logout() {
+            if (confirm('هل أنت متأكد من رغبتك في تسجيل الخروج؟')) {
+                window.location.reload();
+            }
+        }
+
+        function takeMic(micIndex) {
+            const choice = confirm('هل تريد تشغيل ملف صوتي على المايك؟\n(موافق لاختيار ملف، إلغاء للصعود بدون صوت)');
+            if (choice) {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'audio/*';
+                input.onchange = e => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = function(event) {
+                            socket.emit('join mic', { room: currentRoom, micIndex, audioUrl: event.target.result });
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                };
+                input.click();
+            } else {
+                socket.emit('join mic', { room: currentRoom, micIndex, audioUrl: null });
+            }
+        }
+
+        function leaveMic(micIndex) {
+            socket.emit('leave mic', { room: currentRoom, micIndex });
+        }
+
+        socket.on('update mics', (mics) => {
+            for (let i = 0; i < 4; i++) {
+                const slot = document.getElementById(`mic-${i}`);
+                const micData = mics[i];
+                if (micData) {
+                    slot.className = 'mic-slot active';
+                    let avatarHtml = micData.avatar && micData.avatar.startsWith('data:image') 
+                        ? `<img src="${micData.avatar}" class="mic-avatar">` 
+                        : `<span>${micData.avatar || '👤'}</span>`;
+
+                    let audioHtml = micData.audioUrl 
+                        ? `<audio controls src="${micData.audioUrl}" ${isGlobalMuted ? 'muted' : ''} style="width: 100%; height: 25px; margin-top:2px;"></audio>` 
+                        : `<span style="font-size:10px; color:#8b949e;">متحدث</span>`;
+
+                    let isMe = micData.username === currentUser;
+                    slot.innerHTML = `
+                        <div style="display:flex; align-items:center; gap:4px;">
+                            ${avatarHtml}
+                            <span style="font-weight:bold; font-size:11px;">${micData.username}</span>
+                        </div>
+                        ${audioHtml}
+isMe ? `<button class="action-btn">حذف</button>` : ''
+                    `;
+                } else {
+                    slot.className = 'mic-slot';
+                    slot.innerHTML = `
+                        <span>مايك ${i+1} (خالي)</span>
+<span>مايك ${i+1} (خالي)</span>
+                    `;
+                }
+            }
+        });
+
+        function switchRoom(roomName) {
+            currentChatPeer = null; 
+            isViewingNotifications = false;
+            currentRoom = roomName;
+            document.getElementById('current-view-title').innerText = `غرفة: ${roomName}`;
+            
+            document.querySelectorAll('.room-item').forEach(el => {
+                el.classList.toggle('active', el.innerText.includes(roomName));
+            });
+
+            socket.emit('join room', roomName);
+            renderMessages();
+        }
+
+        function openPrivateChat(peerUsername) {
+            if (peerUsername === currentUser) return;
+            currentChatPeer = peerUsername;
+            isViewingNotifications = false;
+            document.getElementById('current-view-title').innerText = `محادثة خاصة: ${peerUsername}`;
+            
+            unreadPrivateMessages[peerUsername] = false;
+            updateGlobalUnreadIndicator();
+            updateUsersListUI();
+
+            socket.emit('load private history', { peer: peerUsername });
+        }
+
+        function openPrivateChatsList() {
+            currentChatPeer = null;
+            isViewingNotifications = false;
+            document.getElementById('current-view-title').innerText = 'قائمة الرسائل الخاصة';
+            const container = document.getElementById('messages');
+            container.innerHTML = '<div style="color: #8b949e; text-align:center; margin-top:20px;">اختر مستخدماً من القائمة الجانبية لبدء المحادثة.</div>';
+        }
+
+        function openNotificationsView() {
+            currentChatPeer = null;
+            isViewingNotifications = true;
+            document.getElementById('current-view-title').innerText = 'الإشعارات وطلبات الصداقة';
+            renderNotifications();
+        }
+
+        function sendFriendRequest(targetUser) {
+            socket.emit('send friend request', { recipient: targetUser });
+            alert(`تم إرسال طلب صداقة إلى ${targetUser}`);
+        }
+
+        function promptBanUser(username) {
+            if (currentUser !== "Admin") return alert('غير مسموح لك بحظر المستخدمين!');
+            const minutes = prompt(`حدد مدة الحظر لـ ${username} (بالدقائق):`, "5");
+            if (minutes && !isNaN(minutes)) {
+                socket.emit('ban user', { targetUsername: username, durationMinutes: parseInt(minutes) });
+            }
+        }
+
+        function respondFriendRequest(fromUser, action) {
+            socket.emit('respond friend request', { fromUser, action });
+            friendRequests = friendRequests.filter(req => req !== fromUser);
+            updateNotificationDot();
+            renderNotifications();
+        }
+
+        function renderNotifications() {
+            const container = document.getElementById('messages');
+            container.innerHTML = '';
+            if (friendRequests.length === 0) {
+                container.innerHTML = '<div style="color: #8b949e; text-align:center; margin-top:20px;">لا توجد طلبات صداقة جديدة.</div>';
+                return;
+            }
+            friendRequests.forEach(fromUser => {
+                const card = document.createElement('div');
+                card.className = 'friend-request-card';
+                card.innerHTML = `
+                    <span>طلب صداقة من: ${fromUser}</span>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="action-btn chat-btn" onclick="respondFriendRequest('${fromUser}', 'accept')">قبول</button>
+                        <button class="action-btn" style="background:#f85149;" onclick="respondFriendRequest('${fromUser}', 'reject')">رفض</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function updateNotificationDot() {
+            const dot = document.getElementById('global-notif-dot');
+            if (friendRequests.length > 0) dot.classList.remove('hidden');
+            else dot.classList.add('hidden');
+        }
+
+        function toggleEmojiPicker() {
+            document.getElementById('emoji-picker').classList.toggle('hidden');
+        }
+
+        function addEmoji(emoji) {
+            const input = document.getElementById('message-input');
+            input.value += emoji;
+            toggleEmojiPicker();
+            input.focus();
+        }
+
+        async function toggleVoiceRecording() {
+            if (!isRecording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                    mediaRecorder.onstop = () => {
+                        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const reader = new FileReader();
+                        reader.readAsDataURL(blob);
+                        reader.onloadend = () => sendMediaMessage(reader.result, 'audio');
+                    };
+                    mediaRecorder.start();
+                    isRecording = true;
+                    document.getElementById('mic-btn').style.color = '#ff5252';
+                } catch (err) {
+                    alert('تعذر الوصول إلى الميكروفون.');
+                }
+            } else {
+                mediaRecorder.stop();
+                isRecording = false;
+                document.getElementById('mic-btn').style.color = '#8b949e';
+            }
+        }
+
+        function sendMediaMessage(content, type) {
+            if (currentChatPeer) {
+                socket.emit('private message', { recipient: currentChatPeer, message: content, type: type });
+                if (!privateMessagesCache[currentChatPeer]) privateMessagesCache[currentChatPeer] = [];
+                privateMessagesCache[currentChatPeer].push({ sender: currentUser, avatar: currentAvatar, message: content, type: type, timestamp: new Date().toLocaleTimeString() });
+                renderMessages();
+            } else {
+                socket.emit('chat message', { message: content, type: type });
+            }
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+            if (!message || isViewingNotifications) return;
+
+            if (currentChatPeer) {
+                socket.emit('private message', { recipient: currentChatPeer, message: message, type: 'text' });
+                if (!privateMessagesCache[currentChatPeer]) privateMessagesCache[currentChatPeer] = [];
+                privateMessagesCache[currentChatPeer].push({ sender: currentUser, avatar: currentAvatar, message: message, type: 'text', timestamp: new Date().toLocaleTimeString() });
+                renderMessages();
+            } else {
+                socket.emit('chat message', { message: message, type: 'text' });
+            }
+            input.value = '';
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+
+        function renderMessages() {
+            if (isViewingNotifications) {
+                renderNotifications();
+                return;
+            }
+            const container = document.getElementById('messages');
+            container.innerHTML = '';
+            let messagesList = currentChatPeer ? (privateMessagesCache[currentChatPeer] || []) : (roomMessagesCache[currentRoom] || []);
+
+            messagesList.forEach(msg => {
+                const div = document.createElement('div');
+                const isOutgoing = msg.sender === currentUser;
+                div.className = `message ${isOutgoing ? 'outgoing' : 'incoming'}`;
+                
+                let avatarHtml = msg.avatar && msg.avatar.startsWith('data:image') 
+                    ? `<img src="${msg.avatar}" class="avatar-img">` 
+                    : `<span>${msg.avatar || '👤'}</span>`;
+
+                let contentHtml = msg.type === 'audio' 
+                    ? `<audio controls src="${msg.message}" ${isGlobalMuted ? 'muted' : ''} style="max-width: 200px;"></audio>` 
+                    : `<div>${msg.message}</div>`;
+
+                div.innerHTML = `
+                    <div class="msg-header">
+                        ${avatarHtml}
+                        <span class="sender">${msg.sender}</span>
+                    </div>
+                    ${contentHtml}
+                    <div class="time">${msg.timestamp || ''}</div>
+                `;
+                container.appendChild(div);
+            });
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function updateGlobalUnreadIndicator() {
+            const hasUnread = Object.values(unreadPrivateMessages).some(val => val === true);
+            const dot = document.getElementById('global-unread-dot');
+            if (hasUnread) dot.classList.remove('hidden');
+            else dot.classList.add('hidden');
+        }
+
+        let latestUsersList = [];
+        socket.on('update users', (users) => {
+            latestUsersList = users;
+            updateUsersListUI();
+        });
+
+        function updateUsersListUI() {
+            const list = document.getElementById('users-list');
+            list.innerHTML = '';
+            latestUsersList.forEach(u => {
+                if (u.username === currentUser) return; 
+                const div = document.createElement('div');
+                div.className = 'user-item';
+                
+                let avatarHtml = u.avatar && u.avatar.startsWith('data:image') 
+                    ? `<img src="${u.avatar}" class="user-avatar">` 
+                    : `<span>${u.avatar || '👤'}</span>`;
+
+                let unreadDotHtml = unreadPrivateMessages[u.username] ? `<span class="red-dot"></span>` : '';
+                let banButtonHtml = currentUser === "Admin" ? `<button class="action-btn ban-btn" onclick="promptBanUser('${u.username}')">حظر</button>` : '';
+
+                div.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:5px; overflow:hidden; position:relative;">
+                        ${avatarHtml}
+                        ${unreadDotHtml}
+                        <span style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap; margin-right: 10px;">${u.username}</span>
+                    </div>
+                    <div class="action-btns">
+                        <button class="action-btn chat-btn" onclick="openPrivateChat('${u.username}')">محادثة</button>
+                        <button class="action-btn friend-btn" onclick="sendFriendRequest('${u.username}')">صديق+</button>
+                        ${banButtonHtml}
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        socket.on('friend request received', ({ from }) => {
+            if (!friendRequests.includes(from)) {
+                friendRequests.push(from);
+                updateNotificationDot();
+                if (isViewingNotifications) renderNotifications();
+            }
+        });
+
+        socket.on('friend request response', ({ from, action }) => {
+            if (action === 'accept') alert(`قام ${from} بقبول طلب الصداقة الخاص بك!`);
+            else alert(`قام ${from} برفض طلب الصداقة.`);
+        });
+
+        socket.on('load room messages', (messages) => {
+            roomMessagesCache[currentRoom] = messages;
+            if (!currentChatPeer && !isViewingNotifications) renderMessages();
+        });
+
+        socket.on('chat message', (data) => {
+            const room = data.room || 'العامة';
+            if (!roomMessagesCache[room]) roomMessagesCache[room] = [];
+            roomMessagesCache[room].push(data);
+            if (!currentChatPeer && !isViewingNotifications && currentRoom === room) renderMessages();
+        });
+
+        socket.on('load private messages', ({ peer, messages }) => {
+            privateMessagesCache[peer] = messages;
+            if (currentChatPeer === peer) renderMessages();
+        });
+
+        socket.on('private message', (data) => {
+            const peer = data.sender;
+            if (!privateMessagesCache[peer]) privateMessagesCache[peer] = [];
+            privateMessagesCache[peer].push(data);
+            
+            if (currentChatPeer !== peer) {
+                unreadPrivateMessages[peer] = true;
+                updateGlobalUnreadIndicator();
+                updateUsersListUI();
+            } else {
+                renderMessages();
+            }
+        });
+
+        socket.on('update room counts', (counts) => {
+            for (const [room, count] of Object.entries(counts)) {
+                const badge = document.getElementById(`count-${room}`);
+                if (badge) badge.innerText = count;
+            }
+        });
+
+        socket.on('error msg', (msg) => {
+            alert(msg);
+        });
+    </script>
+</body>
+</html>
