@@ -5,7 +5,33 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>دردشة الملوك</title>
     <script src="/socket.io/socket.io.js"></script>
-    <style>
+<style>
+    /* إعدادات التجاوب ومنع التمرير الأفقي والشاشات العريضة */
+    * { box-sizing: border-box; margin: 0; padding: 0; max-width: 100%; }
+    html, body { width: 100%; overflow-x: hidden; }
+  * { box-sizing: border-box; margin: 0; padding: 0; max-width: 100%; }
+  html, body { width: 100%; overflow-x: hidden; background-color: #0d1117; color: #fff; font-family: Tahoma, sans-serif; }
+
+  /* تنسيقات خاصة بشاشات الهواتف لمنع مشكلة التقريب والعرض الواسع */
+  @media (max-width: 768px) {
+    div, section, header, footer, main, form, input, button {
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+    }
+    body {
+      font-size: 14px;
+      padding: 0 !important;
+    }
+  }
+
+  /* تنسيقات نافذة تسجيل الدخول وباقي العناصر */
+  #auth-modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.8); }
+  .auth-box { background: #161b22; padding: 30px; border-radius: 10px; width: 380px; text-align: center; border: 1px solid #30363d; }
+  .auth-box h2 { margin-bottom: 20px; color: #f0f6fc; }
+  .auth-box input[type="text"], .auth-box input[type="password"] { width: 100%; padding: 10px; margin-bottom: 15px; background: #238636; color: #fff; border: none; border-radius: 5px; }
+  .auth-box button { width: 100%; padding: 10px; background: #238636; color: #fff; border: none; border-radius: 5px; cursor: pointer; }
+</style>
+
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: Tahoma, sans-serif; }
         body { background-color: #0d1117; color: #c9d1d9; display: flex; height: 100vh; overflow: hidden; transition: background 0.3s ease; }
         
