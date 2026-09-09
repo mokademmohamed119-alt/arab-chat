@@ -6,6 +6,54 @@
     <title>دردشة الملوك</title>
     <script src="/socket.io/socket.io.js"></script>
 <style>
+    input, select, textarea {
+    font-size: 16px !important;
+}
+    /* حاوية الشات العامة */
+.chat-container {
+    display: flex;
+    flex-direction: column; /* جعل الرسائل تترتب عمودياً سطر فوق سطر */
+    gap: 8px; /* مسافة بسيطة بين كل رسالة والأخرى */
+    padding: 10px;
+    overflow-y: auto;
+}
+
+/* تصميم سطر الرسالة الواحد */
+.chat-row {
+    display: flex;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.05); /* تلوين خلفية السطر بشكل خفيف مثل الصورة */
+    padding: 6px 10px;
+    border-radius: 4px;
+    width: 100%;
+}
+
+/* صورة المستخدم الصغيرة على اليمين */
+.user-avatar {
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    margin-left: 10px;
+}
+
+/* محتوى اسم المستخدم والرسالة بجانب بعضهما في نفس السطر */
+.message-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* لون وننسق اسم المستخدم */
+.username {
+    color: #f3f4f6;
+    font-weight: bold;
+}
+
+/* نص الرسالة */
+.text {
+    color: #e5e7eb;
+}
     /* إعدادات التجاوب ومنع التمرير الأفقي والشاشات العريضة */
     * { box-sizing: border-box; margin: 0; padding: 0; max-width: 100%; }
     html, body { width: 100%; overflow-x: hidden; }
@@ -135,8 +183,11 @@
         </div>
     </div>
 
+
     <div id="main-chat" class="main-container hidden">
+    
         <div class="chat-area">
+         <div class="messages-container" style="display: flex; flex-direction: column; gap: 8px; overflow-y: auto; padding: 10px; height: 100%;"></div>
             <div class="header">
                 <div id="current-view-title" class="room-title">غرفة: العامة</div>
                 <div class="top-nav-buttons">
@@ -696,6 +747,35 @@ isMe ? `<button class="action-btn">حذف</button>` : ''
         socket.on('error msg', (msg) => {
             alert(msg);
         });
-    </script>
+    <script>
+    // كود استقبال وعرض الرسائل هنا
+    socket.on('load room messages', (messages) => {
+        const messagesContainer = document.querySelector('.messages-container');
+        if (!messagesContainer) return;
+        messagesContainer.innerHTML = '';
+        messages.forEach(msg => appendMessage(msg));
+    });
+
+    socket.on('chat message', (data) => {
+        appendMessage(data);
+    });
+
+    function appendMessage(data) {
+        const messagesContainer = document.querySelector('.messages-container');
+        if (!messagesContainer) return;
+
+        const chatRow = document.createElement('div');
+        chatRow.className = 'chat-row';
+        chatRow.innerHTML = `
+            <img src="${data.avatar || '👤'}" class="user-avatar" alt="avatar">
+            <div class="message-content">
+                <span class="username">${data.sender}</span>:
+                <span class="text">${data.message}</span>
+            </div>
+        `;
+        messagesContainer.appendChild(chatRow);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+</script>
 </body>
 </html>
